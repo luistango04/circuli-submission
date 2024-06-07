@@ -1,27 +1,22 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>Imagedetection</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='bootstrap/css/bootstrap.min.css') }}">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
 </head>
 <body>
-    <main>
-        <div class="px-4 py-3 my-2 text-center">
-            <h1 class="display-6 fw-bold text-primary">CAN I just do a straight cloud output?</h1>            
-        </div>
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6 text-center">
-                    <h2 class="fw-bold fs-5">Before</h2>
-                    <img class="img-fluid mb-4" src="{{ url_for('static', filename='images/before-image.jpg') }}" alt="Before Image" style="max-width: 100%; height: auto;">
-                </div>
-                <div class="col-md-6 text-center">
-                    <h2 class="fw-bold fs-5">After</h2>
-                    <img class="img-fluid mb-4" src="{{ url_for('static', filename='images/after-image.jpg') }}" alt="After Image" style="max-width: 100%; height: auto;">
-                </div>
-            </div>
-        </div>
-    </main>      
+  <main>
+     <div class="px-4 py-3 my-2 text-center">
+         <img class="d-block mx-auto mb-4" src="{{ url_for('static', filename='images/azure-icon.svg') }}" alt="Azure Logo" width="192" height="192"/>
+         <h1 class="display-6 fw-bold">Upload your files</h1>
+         <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+             <input type="file" name="file" multiple>
+             <button type="submit" class="btn btn-primary">Upload</button>
+         </form>
+         <a href="{{ url_for('index') }}" class="btn btn-secondary mt-3">Back home</a>
+       </div>
+  </main>
 </body>
 </html>
