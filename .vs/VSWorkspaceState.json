@@ -1,8 +1,10 @@
 {
   "ExpandedNodes": [
     "",
+    "\\models",
     "\\static",
     "\\templates"
   ],
+  "SelectedNode": "\\best.pt",
   "PreviewInSolutionExplorer": false
 }

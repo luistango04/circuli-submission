@@ -12,7 +12,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def index():
     return render_template('index.html')
 
-@app.route('/upload', methods=['POST'])
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if request.method == 'POST':
