@@ -7,7 +7,13 @@ import open3d as o3d
 from scipy.spatial import cKDTree
 from joblib import Parallel, delayed
 
-
+def displaypointclouds(od3object):
+    # Visualize the first half point cloud
+    o3d.visualization.draw_geometries([od3object],
+                                      zoom=0.3412,
+                                      front=[0.4257, -0.2125, -0.8795],
+                                      lookat=[2.6172, 2.0475, 1.532],
+                                      up=[-0.0694, -0.9768, 0.2024])
 def estimate_normals_kdtree(points, k=30, n_jobs=6):
     """
     Estimate the normals of a point cloud using PCA and KD-tree.
@@ -91,6 +97,8 @@ def annotate_point_cloud(point_cloud, positions, normals, sphere_radius=30, arro
     return annotated_point_cloud
 
 
+
+
 class Screw:
     def __init__(self, cropped_image, bounding_box, confidence, outerclass):
         self.cropped_image = cropped_image
@@ -104,11 +112,7 @@ class Screw:
         self.midpointcloud[1] = int(self.midpointcloud[1])
 
         self.midpointXYZ,self.normals,self.resized_points,self.resized_colors = self.mask_pointcloud()
-        # Annotate the point cloud with spheres and arrows
-        annotated_point_cloud = annotate_point_cloud(self.outerclass.ply_cloud, [self.midpointXYZ], [self.normals])
 
-        # Visualize the annotated point cloud
-        o3d.visualization.draw_geometries([annotated_point_cloud])
         self.confidence = confidence
     # Function to annoate a 3d Point cloud with sphere representing XYZ and an array representing the normal vector
 
@@ -207,24 +211,6 @@ class Screw:
         average_normal = np.mean(normals, axis=0)
         average_normal /= np.linalg.norm(average_normal)  # Normalize the average normal
 
-        # Apply the average normal to all points
-        consolidated_normals = np.tile(average_normal, (points.shape[0], 1))
-
-
-        # Create new point cloud
-        masked_point_cloud = o3d.geometry.PointCloud()
-        masked_point_cloud.points = o3d.utility.Vector3dVector(resized_points)
-        masked_point_cloud.colors = o3d.utility.Vector3dVector(resized_colors)
-        masked_point_cloud.normals = o3d.utility.Vector3dVector(normals)
-
-        # # Visualize the masked point cloud
-        # o3d.visualization.draw_geometries([masked_point_cloud],
-        #                                   zoom=0.3412,
-        #                                   front=[0.4257, -0.2125, -0.8795],
-        #                                   lookat=[2.6172, 2.0475, 1.532],
-        #                                   up=[-0.0694, -0.9768, 0.2024],
-        #                                   point_show_normal=True)
-        #
 
         print(normals)
 
@@ -252,14 +238,13 @@ class FileContainer:
         first_half_point_cloud = o3d.geometry.PointCloud()
         first_half_point_cloud.points = o3d.utility.Vector3dVector(first_half_points)
 
-        # Visualize the first half point cloud
-        o3d.visualization.draw_geometries([first_half_point_cloud],
-                                          zoom=0.3412,
-                                          front=[0.4257, -0.2125, -0.8795],
-                                          lookat=[2.6172, 2.0475, 1.532],
-                                          up=[-0.0694, -0.9768, 0.2024])
+
     def loaddata(self, ply_file, png_file, json_file):
         self.ply_cloud = self._load_ply_cloud(ply_file)
+        annotated_point_cloud = o3d.geometry.PointCloud()
+        annotated_point_cloud.points = self.ply_cloud.points  # Copy original points
+        annotated_point_cloud.colors = self.ply_cloud.colors  # Copy original points
+        self.annotated_point_cloud = annotated_point_cloud
         self.png_image = self._load_png_image(png_file)
         self.json_data = self._load_json_data(json_file)
     def detectscrews(self):
@@ -314,7 +299,10 @@ class FileContainer:
         # Return image with bounding boxes and interest array
         return  "/output_image.jpg", interest
 
-
+    def annotateallscrews(self):
+        # Iterate through all screws inside self.screws and perform the below function
+        for x in self.screws:
+            self.annotated_point_cloud = annotate_point_cloud(self.annotated_point_cloud, [x.midpointXYZ], [x.normals])
 
     def _load_ply_cloud(self, ply_file):
         # Load PLY data using Open3D

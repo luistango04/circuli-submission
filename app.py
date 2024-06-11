@@ -1,5 +1,5 @@
 from flask import Flask, request, redirect, url_for, render_template
-from models.submissionclass import FileContainer  # Import the FileContainer class
+from models.submissionclass import *  # Import the FileContainer class
 
 import os
 
@@ -36,6 +36,9 @@ def upload_file():
                 uploaded_files['json']
             )
             imagetoshow, _ = file_container.detectscrews()  # Get the image from detectscrews
+            file_container.annotateallscrews()
+            displaypointclouds(file_container.annotated_point_cloud)
+
             return render_template('display.html', image=imagetoshow)  # Pass image to the template
 
 
