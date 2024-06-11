@@ -37,9 +37,14 @@ def upload_file():
             )
             imagetoshow, _ = file_container.detectscrews()  # Get the image from detectscrews
             file_container.annotateallscrews()
+            file_container.transformpointcloud()
             displaypointclouds(file_container.annotated_point_cloud)
+            jsondumpsprepare = jsonprepare(file_container.screws,file_container.json_data)
+            # Save JSON data to a file
+            with open(os.path.join(app.config['UPLOAD_FOLDER'], 'screw_poses.json'), 'w') as json_file:
+                json_file.write(jsondumpsprepare)
 
-            return render_template('display.html', image=imagetoshow)  # Pass image to the template
+            return render_template('display.html', image=imagetoshow, json_data=jsondumpsprepare)  # Pass image to the template
 
 
         # Handle error scenario where not all required files are uploaded

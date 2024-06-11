@@ -7,6 +7,39 @@ import open3d as o3d
 from scipy.spatial import cKDTree
 from joblib import Parallel, delayed
 
+def jsonprepare(screws,transformation_matrix):
+    transformed_screws = []
+    for idx, x in enumerate(screws):
+        # Transform screw coordinates
+        screw_xyz = np.array(
+            [x.midpointXYZ[0], x.midpointXYZ[1], x.midpointXYZ[2], 1])  # Extend to homogeneous coordinates
+        transformed_xyz = np.dot(transformation_matrix, screw_xyz)[
+                          :3]  # Apply transformation and remove homogeneous component
+
+        # Transform screw normals
+        screw_normal = np.array([x.normals[0], x.normals[1], x.normals[2],
+                                 0])  # Extend to homogeneous coordinates, assuming normals are directions
+        transformed_normal = np.dot(transformation_matrix, screw_normal)[
+                             :3]  # Apply transformation and remove homogeneous component
+
+        # Append transformed screw coordinates and normals for each screw
+        transformed_screws.append({
+            "midpointXYZ": transformed_xyz.tolist(),
+            "normals": transformed_normal.tolist()
+        })
+
+        # Construct JSON payload containing transformed screw poses
+        json_payload = {
+
+            "screw_poses": transformed_screws
+        }
+
+    # Convert JSON payload to string
+        json_string = json.dumps(json_payload, indent=4)
+
+    return json_string
+
+
 def displaypointclouds(od3object):
     # Visualize the first half point cloud
     o3d.visualization.draw_geometries([od3object],
@@ -28,28 +61,27 @@ def estimate_normals_kdtree(points, k=30, n_jobs=6):
     """
     tree = cKDTree(points)
     viewpoint = np.array([0.0, 0.0, 0.0])
-    def compute_normal(index):
-        neighbors_idx = tree.query(points[index], k=k)[1]
-        neighbors = points[neighbors_idx]
-        cov_matrix = np.cov(neighbors.T)
-        eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-        normal = eigenvectors[:, 0]
-        # Ensure the normal is facing towards the viewpoint
-        to_viewpoint = viewpoint - points[index]
-        if np.dot(normal, to_viewpoint) < 0:
-            normal = -normal
+
+    def compute_normal(index, skip=2):
+        if index % skip == 0:
+            neighbors_idx = tree.query(points[index], k=k)[1]
+            neighbors = points[neighbors_idx]
+            cov_matrix = np.cov(neighbors.T)
+            eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+            normal = eigenvectors[:, 0]
+            # Ensure the normal is facing towards the viewpoint
+            to_viewpoint = viewpoint - points[index]
+            if np.dot(normal, to_viewpoint) < 0:
+                normal = -normal
+            return normal
+        else:
+            return None
 
         return normal
 
-    normals = Parallel(n_jobs=n_jobs)(delayed(compute_normal)(i) for i in range(points.shape[0]))
+    normals = Parallel(n_jobs=n_jobs)(delayed(compute_normal)(i) for i in range(points.shape[0]) if compute_normal(i) is not None)
+
     return np.array(normals)
-# Example usage
-
-
-# # Example usage
-# points = np.random.rand(100, 3)  # Replace this with your actual points
-# normals = estimate_normals(points)
-# print(normals)
 
 
 def create_sphere_at_position(pos, radius=1.0, resolution=20):
@@ -70,7 +102,7 @@ def create_sphere_at_position(pos, radius=1.0, resolution=20):
     return sphere_mesh
 
 
-def annotate_point_cloud(point_cloud, positions, normals, sphere_radius=30, arrow_length=0.1):
+def annotate_point_cloud(point_cloud, positions, normals, sphere_radius=30, arrow_length=10):
     """
     Annotates a 3D point cloud with spheres representing positions and arrows representing normals.
 
@@ -82,6 +114,7 @@ def annotate_point_cloud(point_cloud, positions, normals, sphere_radius=30, arro
     annotated_point_cloud.points = point_cloud.points  # Copy original points
     annotated_point_cloud.colors = point_cloud.colors  # Copy original points
     # Add spheres and arrows to the annotated point cloud
+
     for pos, normal in zip(positions, normals):
         # Create sphere at the position
         sphere_at_pos = create_sphere_at_position(pos, radius=sphere_radius)
@@ -89,10 +122,6 @@ def annotate_point_cloud(point_cloud, positions, normals, sphere_radius=30, arro
         # Add points and triangles of the sphere to the annotated point cloud
         annotated_point_cloud.points.extend(np.asarray(sphere_at_pos.vertices))
         annotated_point_cloud.colors.extend(np.asarray(sphere_at_pos.vertex_colors))
-
-        # Add the arrow to the annotated point cloud
-        # arrow_at_pos = arrow.rotate(rotation_matrix, center=(0, 0, 0)).translate(pos + normal * arrow_length / 2)
-        # annotated_point_cloud += arrow_at_pos
 
     return annotated_point_cloud
 
@@ -112,10 +141,12 @@ class Screw:
         self.midpointcloud[1] = int(self.midpointcloud[1])
 
         self.midpointXYZ,self.normals,self.resized_points,self.resized_colors = self.mask_pointcloud()
+        self.xyzrpy = self.transformtoworldframe()
 
         self.confidence = confidence
     # Function to annoate a 3d Point cloud with sphere representing XYZ and an array representing the normal vector
-
+    def transformtoworldframe(self):
+        self.xyzrpy = [self.midpointXYZ,self.normals]
     def draw_circleofscrew(self):
         # Convert the image to grayscale
         gray_img = cv2.cvtColor(self.cropped_image, cv2.COLOR_BGR2GRAY)
@@ -212,41 +243,30 @@ class Screw:
         average_normal /= np.linalg.norm(average_normal)  # Normalize the average normal
 
 
-        print(normals)
 
-
-        return midpointXYZ,normals,resized_points,resized_colors
-
-
+        return midpointXYZ,average_normal,resized_points,resized_colors
 class FileContainer:
     def __init__(self):
 
         # detect screws
         self.model = YOLO("best.pt")  # load a pretrained model
-    def visualize_first_half_pointcloud(self,ply_cloud):
-        # Convert Open3D point cloud to numpy array
-        points = np.asarray(ply_cloud.points)
-
-        # Get the number of points and compute the halfway point
-        num_points = points.shape[0]
-        #halfway_point = num_points // 2
-        quarterpoint = 313344
-        # Select the first half of the points
-        first_half_points = points[:quarterpoint]
-
-        # Create a new point cloud with the first half of the points
-        first_half_point_cloud = o3d.geometry.PointCloud()
-        first_half_point_cloud.points = o3d.utility.Vector3dVector(first_half_points)
-
-
     def loaddata(self, ply_file, png_file, json_file):
         self.ply_cloud = self._load_ply_cloud(ply_file)
+
+        self.png_image = self._load_png_image(png_file)
+        self.json_data = self._load_json_data(json_file)
+
         annotated_point_cloud = o3d.geometry.PointCloud()
         annotated_point_cloud.points = self.ply_cloud.points  # Copy original points
         annotated_point_cloud.colors = self.ply_cloud.colors  # Copy original points
         self.annotated_point_cloud = annotated_point_cloud
-        self.png_image = self._load_png_image(png_file)
-        self.json_data = self._load_json_data(json_file)
+
+    def transformpointcloud(self):
+        transformation_matrix_list  = self.json_data
+        transformation_matrix = np.array(transformation_matrix_list)
+
+
+        self.annotated_point_cloud.transform(transformation_matrix)
     def detectscrews(self):
         # Read the PNG image
         self.screws = []
@@ -301,8 +321,11 @@ class FileContainer:
 
     def annotateallscrews(self):
         # Iterate through all screws inside self.screws and perform the below function
-        for x in self.screws:
+
+
+        for idx,x in enumerate(self.screws):
             self.annotated_point_cloud = annotate_point_cloud(self.annotated_point_cloud, [x.midpointXYZ], [x.normals])
+            ## add lines of code that will take the json transformation 4 x 4 matrix  and transform the screw xyz and normals
 
     def _load_ply_cloud(self, ply_file):
         # Load PLY data using Open3D
@@ -330,11 +353,4 @@ class FileContainer:
             return data
         else:
             return None
-
-# Example usage:
-# file_container = FileContainer(ply_file_path, png_file_path, json_file_path)
-# Access the stored data
-# ply_cloud_data = file_container.ply_cloud
-# png_image_data = file_container.png_image
-# json_data = file_container.json_data
 
