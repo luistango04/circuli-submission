@@ -16,6 +16,13 @@
                    <img src="{{ url_for('static', filename=image) }}" class="img-fluid" alt="Detected Screws">
                </div>
                <div class="col-md-8">
+                   <!-- Display 3D visualization -->
+                   <div class="mt-3 text-center"> <!-- Center align content -->
+                       <h2 class="h5">Point Cloud Visualization</h2>
+                       <div>
+                           {{ pointcloudvisual | safe }} <!-- Embed 3D visualization -->
+                       </div>
+                   </div>
                    <!-- Display JSON information -->
                    <div class="mt-3 text-center"> <!-- Center align content -->
                        <h2 class="h5">Screw Poses JSON</h2>
