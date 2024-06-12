@@ -42,6 +42,8 @@ def jsonprepare(screws,transformation_matrix):
 def displaypointclouds(od3object):
     filename = 'static/results.ply'
 
+    o3d.visualization.draw_geometries([od3object], window_name="Point Cloud Visualizer", width=800, height=600)
+    
     o3d.io.write_point_cloud(filename, od3object)
     return filename
 def estimate_normals_kdtree(points, k=30, n_jobs=6):
